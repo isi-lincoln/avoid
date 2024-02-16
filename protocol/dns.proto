@@ -1,0 +1,80 @@
+syntax = 'proto3';
+
+option go_package = "github.com/isi-lincoln/avoid/protocol";
+
+package protocol;
+
+/*
+ * The DNS service is responsible for managing the CoreDNS's
+ * internal dns responses to clients.
+*/
+service DNS {
+  // Update: Create or Modify DNS entry
+  rpc Update (EntryRequest) returns (EntryResponse) {}
+
+  // Delete: Remove DNS entry from db
+  rpc Delete (EntryRequest) returns (EntryResponse) {}
+
+  // List: Display all entries by key
+  rpc List (ListRequest) returns (ListResponse) {}
+
+  // Show: Display a single entry's value given a key
+  rpc Show (ShowRequest) returns (ShowResponse) {}
+
+  // Clear: Remove all entries from memory
+  rpc Clear (ClearRequest) returns (EntryResponse) {}
+
+  // Reload: Fetch all stored entries from db into memory
+  rpc Reload (ReloadRequest) returns (ReloadResponse) {}
+}
+
+
+// Identification: the mechanism of pinning a UE to a DNS request
+// There are probably better ways of achieving this other than through
+// IP, if the UE is able to speak the protocol and can provide information
+// such as ISMI, or other UUIDs that can 1:1 map the UE.
+message Identification {
+    string uuid = 1;
+    string ipv4 = 2;
+    string ipv6 = 3;
+    string ismi = 4;
+}
+
+message DNSEntry {
+    bool A = 1; // ipv4
+    bool AAAA = 2; // ipv6
+    int64 TTL = 3; // what should the ttl of this record be
+    repeated string Value = 4; // this will be our response values
+    string TXT = 5; // we can use the txt field for UE if needed
+}
+
+message EntryRequest {
+    Identification ident = 1;
+    DNSEntry entry = 2;
+}
+
+message EntryResponse {
+    string response = 1;
+    int64 code = 2;
+}
+
+message ListRequest {}
+message ListResponse {
+    repeated Identification keys = 1;
+}
+
+message ShowRequest {
+    Identification key = 1;
+}
+
+message ShowResponse {
+    DNSEntry entry = 2;
+}
+
+message ClearRequest {}
+message ReloadRequest {
+    repeated EntryRequest entries = 1;
+}
+message ReloadResponse {
+    repeated EntryResponse responses = 1;
+}
