@@ -1,9 +1,12 @@
 package pkg
 
 var (
-	string DefaultDNSKey = "default"
+	DefaultConfigPath = "/etc/avoid/config.yml"
+	DefaultDNSKey     = "default"
 
-	int    DefaultAvoidDNSPort    = 9000
-	string DefaultAvoidDNSPortENV = "AVOID_DNS_PORT"
-	string DefaultAvoidDNSAddrENV = "AVOID_DNS_ADDR"
+	DefaultAvoidDNSPort    = 9000
+	DefaultAvoidDNSPortENV = "AVOID_DNS_PORT"
+	DefaultAvoidDNSAddrENV = "AVOID_DNS_ADDR"
+
+	DNSEntryPrefix = "/dns"
 )

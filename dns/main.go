@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"net"
+	"net/netip"
 	"os"
 	"strconv"
 	"strings"
@@ -25,59 +26,61 @@ func checkRecord(record *avoid.DNSEntry) error {
 	// TODO: other methods of identification
 	switch record.Recordtype {
 	case "A":
-		for v := range record.Value {
-			addr, err := net.ParseAddr(v)
+		for _, ip := range record.Records {
+			addr, err := netip.ParseAddr(ip)
 			if err != nil {
-				return fmt.Errorf("Bad address provided %s: %v", v, err)
+				return fmt.Errorf("Bad address provided %s: %v", ip, err)
 			}
 			if !addr.Is4() {
-				return fmt.Errorf("Address is not ipv4 but ident is %s: %v", v, ident)
+				return fmt.Errorf("Address is not ipv4 but record type is %s: %s", ip, record.Recordtype)
 			}
 		}
 		break
 	case "AAAA":
-		for v := range record.Value {
-			addr, err := net.ParseAddr(v)
+		for _, ip := range record.Records {
+			addr, err := netip.ParseAddr(ip)
 			if err != nil {
-				return fmt.Errorf("Bad address provided %s: %v", v, err)
+				return fmt.Errorf("Bad address provided %s: %v", ip, err)
 			}
 			if !addr.Is6() {
-				return fmt.Errorf("Address is not ipv6 but ident is %s: %v", v, ident)
+				return fmt.Errorf("Address is not ipv6 but record type is %s: %v", ip, record.Recordtype)
 			}
 		}
 		break
 	default:
 		errMsg := fmt.Errorf("Unknown record type: %s", record.Recordtype)
-		log.Errorf(errMsg)
+		log.Errorf("%v", errMsg)
 		return errMsg
 	}
 
-	if len(record.Value) <= 0 {
+	if len(record.Records) <= 0 {
 		return fmt.Errorf("DNS Entry does not have a value- delete instead")
 	}
 
 	// RFC 2181
-	if record.TTL < 0 || record.TTL >= (2<<31)-1 {
+	if record.Ttl < 0 || record.Ttl >= (2<<31)-1 {
 		return fmt.Errorf("DNS Entry TTL must be between 0 and 2^31-1")
 	}
 
 	// RFC 6763
-	if len(record.TXT) == 0 || len(record.TXT) >= 65535 {
+	if len(record.Txt) == 0 || len(record.Txt) >= 65535 {
 		return fmt.Errorf("DNS TXT field must be between 1 and 65535")
 	}
 
-	if len(record.TXT) > 200 {
-		log.Warnf("%v: %v should use a TXT field less than 200 bytes", ident, record)
+	if len(record.Txt) > 200 {
+		log.Warnf("%s: should use a TXT field less than 200 bytes: %s", record.Id, record.Txt)
 	}
+
+	return nil
 }
 
-func update(entry *avoid.Entry) error {
+func update(entry *avoid.DNSEntry) error {
 	// TODO; this is just for the laxness of the protocol,
 	// if we have an ipv4 record and the entry has AAAA set
 	// we dont want to allow that, see TODO note below on
 	// additional methods for setting that.  Either way, client
 	// should still validate what the server is sending it.
-	err := checkRecord(req.Entry)
+	err := checkRecord(entry)
 	if err != nil {
 		log.Errorf("%s", err)
 		return fmt.Errorf("%s", err)
@@ -87,10 +90,14 @@ func update(entry *avoid.Entry) error {
 
 	err = stor.Write(objs, false)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	return nil
+}
+
+type DNSServer struct {
+	avoid.UnimplementedDNSServer
 }
 
 func (s *DNSServer) Update(ctx context.Context, req *avoid.EntryRequest) (*avoid.EntryResponse, error) {
@@ -108,8 +115,9 @@ func (s *DNSServer) Update(ctx context.Context, req *avoid.EntryRequest) (*avoid
 	}
 
 	log.WithFields(log.Fields{
-		"Identity": req.Ident,
-		"DNS":      req.Entry,
+		"Identity": req.Entry.Id,
+		"Type":     req.Entry.Recordtype,
+		"Records":  req.Entry.Records,
 	}).Info("Update")
 
 	err := update(req.Entry)
@@ -139,7 +147,7 @@ func (s *DNSServer) Delete(ctx context.Context, req *avoid.EntryRequest) (*avoid
 
 	objs := stor.Object(req.Entry)
 
-	err = stor.Delete(objs)
+	err := stor.Delete(objs)
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +161,7 @@ func (s *DNSServer) List(ctx context.Context, req *avoid.ListRequest) (*avoid.Li
 
 	prefix := fmt.Sprintf("%s/", pkg.DNSEntryPrefix)
 
-	keys := make([string]string)
+	keys := make(map[string]string)
 	err := stor.WithEtcd(func(c *clientv3.Client) error {
 		//TODO:  arbitrary 1 second delay, should use config value
 		ctx, cancel := context.WithTimeout(context.TODO(), 1*time.Second)
@@ -187,7 +195,7 @@ func (s *DNSServer) List(ctx context.Context, req *avoid.ListRequest) (*avoid.Li
 		keyList = append(keyList, k)
 	}
 
-	return &avoid.ListEntryResponse{
+	return &avoid.ListResponse{
 		Keys: keyList,
 	}, nil
 }
@@ -243,7 +251,7 @@ func (s *DNSServer) Show(ctx context.Context, req *avoid.ShowRequest) (*avoid.Sh
 	}, nil
 }
 
-func (s *DNSServer) Clear(ctx context.Context, req *avoid.ClearRequest) (*avoid.ClearResponse, error) {
+func (s *DNSServer) Clear(ctx context.Context, req *avoid.ClearRequest) (*avoid.EntryResponse, error) {
 	if req == nil {
 		errMsg := fmt.Sprintf("Show: Malformed Request")
 		log.Errorf("%s", errMsg)
@@ -255,16 +263,10 @@ func (s *DNSServer) Clear(ctx context.Context, req *avoid.ClearRequest) (*avoid.
 	err := stor.WithEtcd(func(c *clientv3.Client) error {
 		//TODO:  arbitrary 1 second delay, should use config value
 		ctx, cancel := context.WithTimeout(context.TODO(), 1*time.Second)
-		resp, err := c.Delete(ctx, fmt.Sprintf("%s/", pkg.DNSEntryPrefix), clientv3.WithPrefix())
+		_, err := c.Delete(ctx, fmt.Sprintf("%s/", pkg.DNSEntryPrefix), clientv3.WithPrefix())
 		cancel()
 		if err != nil {
 			return err
-		}
-
-		// keys are in the form: "/prefix/key/record
-		// so we only want the keys portion
-		for _, kv := range resp.Kvs {
-			log.Infof("Deleted: %s\n", kv.Key)
 		}
 
 		return nil
@@ -297,12 +299,12 @@ func (s *DNSServer) Reload(ctx context.Context, req *avoid.ReloadRequest) (*avoi
 	log.Info("Updating with %d entries", len(req.Entries))
 
 	resp := make([]*avoid.EntryResponse, 0)
-	for entry := range req.Entries {
-		err := update(entry.Ident, entry.Entry)
-		msg := ""
-		code := 0
+	for _, entry := range req.Entries {
+		var err error = update(entry.Entry)
+		var msg string = ""
+		var code int64 = 0
 		if err != nil {
-			msg = err
+			msg = fmt.Sprintf("%v", err)
 			code = 1
 		}
 		resp = append(resp, &avoid.EntryResponse{Response: msg, Code: code})
@@ -322,7 +324,7 @@ func main() {
 	flag.BoolVar(&debug, "debug", false, "enable extra debug logging")
 
 	defaultPortEnv := pkg.DefaultAvoidDNSPortENV
-	defaultAddrEnv := pkg.DefaultAvoidDNSAddressENV
+	defaultAddrEnv := pkg.DefaultAvoidDNSAddrENV
 
 	// If we have environment variables, load them in
 	portStr := os.Getenv(defaultPortEnv)
@@ -352,34 +354,34 @@ func main() {
 	}
 
 	// if we have a configuration file load it
-	cfg, err := config.LoadConfig(EtcdConfigPath)
+	cfg, err := pkg.LoadConfig(pkg.DefaultConfigPath)
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
 
 	// if the configuration file has environment settings, set them
-	err = config.ReadENVSettings(cfg)
+	err = pkg.ReadENVSettings(cfg)
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
 
 	// configure the backend database settings
-	etcdCfg, err := config.SetEtcdSettings(cfg)
+	etcdCfg, err := pkg.SetEtcdSettings(cfg)
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
 
 	stor.SetConfig(*etcdCfg)
 
-	if addrStr != "" {
-		_, err := net.ParseAddr(addrStr)
-		if err != nil {
-			log.Errorf("Bad address provided %s: %v", addrStr, err)
-			return
-		}
-		if !addr.Is4() || !addr.Is6() {
-			log.Errorf("Address is not ipv4 or ipv6: %s", addrStr)
-		}
+	netAddr, err := netip.ParseAddr(addr)
+	if err != nil {
+		log.Errorf("Bad address provided %s: %v", addr, err)
+		return
+	}
+
+	if !netAddr.Is4() || !netAddr.Is6() {
+		log.Errorf("Address is not ipv4 or ipv6: %s", addr)
+		return
 	}
 
 	log.Info(fmt.Sprintf("Avoid dns starting up on %s:%d", addr, port))
@@ -391,6 +393,6 @@ func main() {
 	}
 
 	grpcServer := grpc.NewServer()
-	proto.RegisterAvoidServer(grpcServer, &AvoidServer{})
+	avoid.RegisterDNSServer(grpcServer, &DNSServer{})
 	grpcServer.Serve(lis)
 }

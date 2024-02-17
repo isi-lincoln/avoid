@@ -41,9 +41,9 @@ message Identification {
 }
 
 message DNSEntry {
-    string key = 1; // unique id
+    string id = 1; // unique id
     string recordtype = 2; // A or AAAA
-    repeated string record = 3; // value of the record
+    repeated string records = 3; // value of the record
     int64 ttl = 4; // what should the ttl of this record be
     string txt = 5; // we can use the txt field for UE if needed
     int64 version = 6;
