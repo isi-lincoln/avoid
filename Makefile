@@ -32,8 +32,12 @@ test:
 #build/avoid-mgmt-cli: mgmt/cli/main.go | build protobuf-avoid
 #	go build -ldflags=$(LDFLAGS) -o $@ $<
 #
-build/avoid-dns:
-	$(MAKE) -C dns
+
+build/avoid-coredns-binary:
+	$(MAKE) -C coredns
+
+build/avoid-dns: dns/main.go | build protobuf-avoid
+	go build -ldflags=$(LDFLAGS) -o $@ $<
 
 build/avoid-dns-cli: dns/cli/main.go | build protobuf-avoid
 	go build -o $@ $<

@@ -41,16 +41,17 @@ message Identification {
 }
 
 message DNSEntry {
-    bool A = 1; // ipv4
-    bool AAAA = 2; // ipv6
-    int64 TTL = 3; // what should the ttl of this record be
-    repeated string Value = 4; // this will be our response values
-    string TXT = 5; // we can use the txt field for UE if needed
+    string key = 1; // unique id
+    string recordtype = 2; // A or AAAA
+    repeated string record = 3; // value of the record
+    int64 ttl = 4; // what should the ttl of this record be
+    string txt = 5; // we can use the txt field for UE if needed
+    int64 version = 6;
 }
 
 message EntryRequest {
-    Identification ident = 1;
-    DNSEntry entry = 2;
+    DNSEntry entry = 1;
+    //Identification ident = 2;
 }
 
 message EntryResponse {
@@ -60,15 +61,15 @@ message EntryResponse {
 
 message ListRequest {}
 message ListResponse {
-    repeated Identification keys = 1;
+    repeated string keys = 1;
 }
 
 message ShowRequest {
-    Identification key = 1;
+    string key = 1;
 }
 
 message ShowResponse {
-    DNSEntry entry = 2;
+    repeated DNSEntry entries = 2;
 }
 
 message ClearRequest {}

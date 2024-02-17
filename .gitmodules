@@ -1,3 +1,3 @@
 [submodule "dns"]
-	path = dns
+	path = coredns
 	url = git@github.com:isi-lincoln/avoid-coredns.git
