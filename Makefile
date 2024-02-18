@@ -65,10 +65,11 @@ REPO ?= isilincoln
 TAG ?= latest
 BUILD_ARGS ?= --no-cache
 
-docker: $(REGISTRY)/$(REPO)/avoid-gateway-service \
-	    $(REGISTRY)/$(REPO)/avoid-management-service \
-		$(REGISTRY)/$(REPO)/avoid-dns-service \
-		$(REGISTRY)/$(REPO)/avoid-path-service
+docker: $(REGISTRY)/$(REPO)/avoid-dns-service
+#docker: $(REGISTRY)/$(REPO)/avoid-gateway-service \
+#	    $(REGISTRY)/$(REPO)/avoid-management-service \
+#		$(REGISTRY)/$(REPO)/avoid-dns-service \
+#		$(REGISTRY)/$(REPO)/avoid-path-service
 
 $(REGISTRY)/$(REPO)/avoid-gateway-service:
 	@docker build ${BUILD_ARGS} $(DOCKER_QUIET) -f Dockerfile -t $(@):$(TAG) .

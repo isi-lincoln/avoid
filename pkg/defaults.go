@@ -6,7 +6,9 @@ var (
 
 	DefaultAvoidDNSPort    = 9000
 	DefaultAvoidDNSPortENV = "AVOID_DNS_PORT"
+	DefaultAvoidDNSAddr    = "0.0.0.0"
 	DefaultAvoidDNSAddrENV = "AVOID_DNS_ADDR"
 
-	DNSEntryPrefix = "/dns"
+	DefaultEtcdHost = "etcd"
+	DefaultEtcdPort = 2379
 )

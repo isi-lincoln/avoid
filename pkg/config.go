@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	avoid "github.com/isi-lincoln/avoid/protocol"
 	log "github.com/sirupsen/logrus"
 	"gitlab.com/mergetb/tech/stor"
 	"gopkg.in/yaml.v2"
@@ -91,6 +92,30 @@ func SetEtcdSettings(config *ServicesConfig) (*stor.Config, error) {
 	} else {
 		return nil, fmt.Errorf("No ETCD config found.\n")
 	}
+
+	return cfg, nil
+}
+
+func LoadDNSConfig(configPath string) ([]*avoid.DNSEntry, error) {
+
+	data, err := ioutil.ReadFile(configPath)
+	if err != nil {
+		log.Errorf("could not read configuration file %s", configPath)
+		return nil, err
+	}
+
+	log.Infof("%s", data)
+
+	cfg := make([]*avoid.DNSEntry, 0)
+	err = yaml.Unmarshal(data, cfg)
+	if err != nil {
+		log.Errorf("could not parse configuration file")
+		return nil, err
+	}
+
+	log.WithFields(log.Fields{
+		"config": fmt.Sprintf("%+v", cfg),
+	}).Debug("load config file")
 
 	return cfg, nil
 }

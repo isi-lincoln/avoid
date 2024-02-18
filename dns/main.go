@@ -12,14 +12,13 @@ import (
 	"strings"
 	"time"
 
-	pkg "github.com/isi-lincoln/avoid/pkg"
-	avoid "github.com/isi-lincoln/avoid/protocol"
 	log "github.com/sirupsen/logrus"
-	"gitlab.com/mergetb/tech/stor"
-
-	//"go.etcd.io/etcd/clientv3"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
+
+	pkg "github.com/isi-lincoln/avoid/pkg"
+	avoid "github.com/isi-lincoln/avoid/protocol"
+	"gitlab.com/mergetb/tech/stor"
 )
 
 func checkRecord(record *avoid.DNSEntry) error {
@@ -75,11 +74,6 @@ func checkRecord(record *avoid.DNSEntry) error {
 }
 
 func update(entry *avoid.DNSEntry) error {
-	// TODO; this is just for the laxness of the protocol,
-	// if we have an ipv4 record and the entry has AAAA set
-	// we dont want to allow that, see TODO note below on
-	// additional methods for setting that.  Either way, client
-	// should still validate what the server is sending it.
 	err := checkRecord(entry)
 	if err != nil {
 		log.Errorf("%s", err)
@@ -159,7 +153,7 @@ func (s *DNSServer) List(ctx context.Context, req *avoid.ListRequest) (*avoid.Li
 
 	log.Info("List DNS Entry Keys")
 
-	prefix := fmt.Sprintf("%s/", pkg.DNSEntryPrefix)
+	prefix := fmt.Sprintf("%s/", avoid.DNSEntryPrefix)
 
 	keys := make(map[string]string)
 	err := stor.WithEtcd(func(c *clientv3.Client) error {
@@ -221,7 +215,7 @@ func (s *DNSServer) Show(ctx context.Context, req *avoid.ShowRequest) (*avoid.Sh
 	err := stor.WithEtcd(func(c *clientv3.Client) error {
 		//TODO:  arbitrary 1 second delay, should use config value
 		ctx, cancel := context.WithTimeout(context.TODO(), 1*time.Second)
-		resp, err := c.Get(ctx, fmt.Sprintf("%s/%s", pkg.DNSEntryPrefix, req.Key), clientv3.WithPrefix())
+		resp, err := c.Get(ctx, fmt.Sprintf("%s/%s", avoid.DNSEntryPrefix, req.Key), clientv3.WithPrefix())
 		cancel()
 		if err != nil {
 			return err
@@ -263,7 +257,7 @@ func (s *DNSServer) Clear(ctx context.Context, req *avoid.ClearRequest) (*avoid.
 	err := stor.WithEtcd(func(c *clientv3.Client) error {
 		//TODO:  arbitrary 1 second delay, should use config value
 		ctx, cancel := context.WithTimeout(context.TODO(), 1*time.Second)
-		_, err := c.Delete(ctx, fmt.Sprintf("%s/", pkg.DNSEntryPrefix), clientv3.WithPrefix())
+		_, err := c.Delete(ctx, fmt.Sprintf("%s/", avoid.DNSEntryPrefix), clientv3.WithPrefix())
 		cancel()
 		if err != nil {
 			return err
