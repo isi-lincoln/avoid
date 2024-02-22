@@ -60,7 +60,7 @@ func LoadConfig(configPath string) (*ServicesConfig, error) {
 func ReadENVSettings(config *ServicesConfig) error {
 
 	if config.Etcd != nil {
-		etcdPort := os.Getenv("ETCDPORT")
+		etcdPort := os.Getenv(DefaultEtcdPortENV)
 		log.Debugf("etcd port env: %s", etcdPort)
 		if etcdPort != "" {
 			intPort, err := strconv.Atoi(etcdPort)
@@ -71,7 +71,7 @@ func ReadENVSettings(config *ServicesConfig) error {
 			}
 		}
 
-		etcdHost := os.Getenv("ETCDHOST")
+		etcdHost := os.Getenv(DefaultEtcdHostENV)
 		log.Debugf("etcd host env: %s", etcdHost)
 		if etcdHost != "" {
 			config.Etcd.Address = etcdHost

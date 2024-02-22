@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -12,9 +13,11 @@ import (
 )
 
 var (
-	dnsServer string
-	dnsPort   int
-	addr      string
+	dnsServer   string
+	dnsPort     int
+	addr        string
+	arecords    []string
+	aaaarecords []string
 )
 
 func main() {
@@ -31,32 +34,89 @@ func main() {
 
 	addr = fmt.Sprintf("%s:%d", dnsServer, dnsPort)
 
-	create := &cobra.Command{
-		Use:   "create",
-		Short: "Create dns entry",
-		Args:  cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			createEntryFunc(args[0])
-		},
+	update := &cobra.Command{
+		Use:   "update",
+		Short: "create or modify dns entry",
 	}
-	root.AddCommand(create)
+	root.AddCommand(update)
 
-	edit := &cobra.Command{
-		Use:   "Edit",
-		Short: "Edit dns entry",
-		Args:  cobra.ExactArgs(1),
+	updateCli := &cobra.Command{
+		Use:   "cli",
+		Short: "update dns entry from cli",
+		Long:  "cli <ue> <name> <ttl> (<txt>) --a 192.168.0.1  --aaaa dead:beef::0123 ...",
+		Args:  cobra.MinimumNArgs(2), // id, record type, ttl. then use flags for records
 		Run: func(cmd *cobra.Command, args []string) {
-			createEntryFunc(args[0])
+
+			ue := args[0]
+			name := args[1]
+			ttlStr := args[2]
+			txt := ""
+			if len(args) > 3 {
+				txt = args[3]
+			}
+			// Id: for now ip address
+			// Recordtype: for now either A/AAAA
+			// Records: dns names associated
+			// TTL: Time to Live for records
+			// TXT: additional field that can be used for validation
+			arecordsArr, err := cmd.Flags().GetStringArray("a")
+			if err != nil {
+				fmt.Printf("Error parsing flag 'a': %v\n", err)
+				return
+			}
+
+			aaaarecordsArr, err := cmd.Flags().GetStringArray("aaaa")
+			if err != nil {
+				fmt.Printf("Error parsing flag 'aaaa': %v\n", err)
+				return
+			}
+
+			ttl, err := strconv.Atoi(ttlStr)
+			if err != nil {
+				fmt.Printf("Unable to convert TTL to Int: %v\n", err)
+				return
+			}
+
+			entry := &avoid.DNSEntry{
+				Ue:          ue,
+				Name:        name,
+				Ttl:         int64(ttl),
+				Txt:         txt,
+				Arecords:    arecordsArr,
+				Aaaarecords: aaaarecordsArr,
+			}
+
+			err = pkg.CheckDNSRecord(entry)
+			if err != nil {
+				fmt.Printf("Invalid entry: %v\n", err)
+				return
+			}
+
+			updateCliFunc(entry)
 		},
 	}
-	root.AddCommand(edit)
+	update.AddCommand(updateCli)
+
+	updateCli.Flags().StringArrayVar(&arecords, "a", []string{}, "DNS Entry record value for A records")
+	updateCli.Flags().StringArrayVar(&aaaarecords, "aaaa", []string{}, "DNS Entry record value for AAAA records")
+
+	updateFile := &cobra.Command{
+		Use:   "file",
+		Short: "update dns entries from file",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			updateFileFunc(args[0])
+		},
+	}
+	update.AddCommand(updateFile)
 
 	del := &cobra.Command{
 		Use:   "delete",
 		Short: "Remove dns entry",
-		Args:  cobra.ExactArgs(1),
+		Long:  "delete <ue> <name>",
+		Args:  cobra.ExactArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
-			delEntryFunc(args[0])
+			delEntryFunc(args[0], args[1])
 		},
 	}
 	root.AddCommand(del)
@@ -64,9 +124,10 @@ func main() {
 	showConfig := &cobra.Command{
 		Use:   "show",
 		Short: "Show system config",
-		Args:  cobra.ExactArgs(1),
+		Long:  "show <ue> <name>",
+		Args:  cobra.ExactArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
-			showConfigFunc(args[0])
+			showConfigFunc(args[0], args[1])
 		},
 	}
 	root.AddCommand(showConfig)
@@ -84,23 +145,14 @@ func main() {
 	root.Execute()
 }
 
-// TODO: Split this into create 1 from cli
-// and create 1/many from a file
-func createEntryFunc(fi string) {
+func updateCliFunc(entry *avoid.DNSEntry) {
 
-	fmt.Printf("test")
-
-	eps, err := pkg.LoadDNSConfig(fi)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	ep := eps[0]
+	fmt.Printf("test cli\n")
 
 	addr := fmt.Sprintf("%s:%d", dnsServer, dnsPort)
 	pkg.WithAvoidDNS(addr, func(c avoid.DNSClient) error {
 		req := &avoid.EntryRequest{
-			Entry: ep,
+			Entries: []*avoid.DNSEntry{entry},
 		}
 
 		fmt.Printf("sent request: %v\n", req)
@@ -115,18 +167,49 @@ func createEntryFunc(fi string) {
 	})
 }
 
-func delEntryFunc(key string) {
+func updateFileFunc(fi string) {
+
+	fmt.Printf("test file")
+
+	eps, err := pkg.LoadDNSConfig(fi)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	addr := fmt.Sprintf("%s:%d", dnsServer, dnsPort)
+	pkg.WithAvoidDNS(addr, func(c avoid.DNSClient) error {
+		req := &avoid.EntryRequest{
+			Entries: eps,
+		}
+
+		fmt.Printf("sent request: %v\n", req)
+		resp, err := c.Update(context.TODO(), req)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		fmt.Printf("%v\n", resp)
+
+		return nil
+	})
+}
+
+func delEntryFunc(ue, name string) {
 
 	// TODO: sanitize key, dont allow ""
-	if key == "" {
+	if ue == "" || name == "" {
+		fmt.Printf("invalid key to delete: %s/%s", ue, name)
 		return
+	}
+
+	entry := &avoid.DNSEntry{
+		Ue:   ue,
+		Name: name,
 	}
 
 	pkg.WithAvoidDNS(addr, func(c avoid.DNSClient) error {
 		req := &avoid.EntryRequest{
-			Entry: &avoid.DNSEntry{
-				Id: key,
-			},
+			Entries: []*avoid.DNSEntry{entry},
 		}
 
 		resp, err := c.Delete(context.TODO(), req)
@@ -141,13 +224,14 @@ func delEntryFunc(key string) {
 
 }
 
-func showConfigFunc(key string) {
+func showConfigFunc(ue, name string) {
 
 	addr := fmt.Sprintf("%s:%d", dnsServer, dnsPort)
 	pkg.WithAvoidDNS(addr, func(c avoid.DNSClient) error {
 
 		resp, err := c.Show(context.TODO(), &avoid.ShowRequest{
-			Key: key,
+			Ue:   ue,
+			Name: name,
 		})
 
 		if err != nil {
@@ -156,7 +240,6 @@ func showConfigFunc(key string) {
 
 		fmt.Printf("Show:\n")
 
-		// TODO: json pretty
 		fmt.Printf("%+v\n", resp)
 
 		return nil
@@ -165,6 +248,7 @@ func showConfigFunc(key string) {
 
 func listAvoidFunc() {
 
+	var keys []string
 	addr := fmt.Sprintf("%s:%d", dnsServer, dnsPort)
 	pkg.WithAvoidDNS(addr, func(c avoid.DNSClient) error {
 
@@ -174,8 +258,17 @@ func listAvoidFunc() {
 			log.Fatal(err)
 		}
 
-		fmt.Printf("%+v\n", resp)
+		keys = resp.Keys
 
 		return nil
 	})
+
+	if len(keys) > 0 {
+		fmt.Printf("Keys:\n")
+		for _, k := range keys {
+			fmt.Printf("\t%s\n", k)
+		}
+	} else {
+		fmt.Printf("No dns keys found\n")
+	}
 }

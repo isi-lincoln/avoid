@@ -37,7 +37,8 @@ build/avoid-coredns-binary:
 	$(MAKE) -C coredns
 
 build/avoid-dns: dns/main.go | build protobuf-avoid
-	go build -ldflags=$(LDFLAGS) -o $@ $<
+	go build -o $@ $<
+#	go build -ldflags=$(LDFLAGS) -o $@ $<
 
 build/avoid-dns-cli: dns/cli/main.go | build protobuf-avoid
 	go build -o $@ $<
@@ -63,7 +64,7 @@ protobuf-avoid:
 REGISTRY ?= docker.io
 REPO ?= isilincoln
 TAG ?= latest
-BUILD_ARGS ?= --no-cache
+#BUILD_ARGS ?= --no-cache
 
 docker: $(REGISTRY)/$(REPO)/avoid-dns-service
 #docker: $(REGISTRY)/$(REPO)/avoid-gateway-service \

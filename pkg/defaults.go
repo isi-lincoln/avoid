@@ -9,6 +9,8 @@ var (
 	DefaultAvoidDNSAddr    = "0.0.0.0"
 	DefaultAvoidDNSAddrENV = "AVOID_DNS_ADDR"
 
-	DefaultEtcdHost = "etcd"
-	DefaultEtcdPort = 2379
+	DefaultEtcdHost    = "etcd"
+	DefaultEtcdPort    = 2379
+	DefaultEtcdHostENV = "ETCD_HOST"
+	DefaultEtcdPortENV = "ETCD_PORT"
 )

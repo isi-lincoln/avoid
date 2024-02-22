@@ -23,9 +23,6 @@ service DNS {
 
   // Clear: Remove all entries from memory
   rpc Clear (ClearRequest) returns (EntryResponse) {}
-
-  // Reload: Fetch all stored entries from db into memory
-  rpc Reload (ReloadRequest) returns (ReloadResponse) {}
 }
 
 
@@ -40,18 +37,26 @@ message Identification {
     string ismi = 4;
 }
 
+message Record {
+    string Name = 1;  
+    int64 Rrtype = 2;
+    int64 Class = 3;
+    int64 Ttl = 4;
+    int64 Rdlength = 5;
+}
+
 message DNSEntry {
-    string id = 1; // unique id
-    string recordtype = 2; // A or AAAA
-    repeated string records = 3; // value of the record
-    int64 ttl = 4; // what should the ttl of this record be
-    string txt = 5; // we can use the txt field for UE if needed
-    int64 version = 6;
+    string ue = 1; // requesting devices id
+    string name = 2; // unique id ~ this is a domain name
+    repeated string arecords = 3; // A records
+    repeated string aaaarecords = 4; // AAAA records
+    int64 ttl = 5; // what should the ttl of this record be
+    string txt = 6; // we can use the txt field for UE if needed
+    int64 version = 7;
 }
 
 message EntryRequest {
-    DNSEntry entry = 1;
-    //Identification ident = 2;
+    repeated DNSEntry entries = 1;
 }
 
 message EntryResponse {
@@ -65,17 +70,12 @@ message ListResponse {
 }
 
 message ShowRequest {
-    string key = 1;
+    string ue = 1;
+    string name = 2;
 }
 
 message ShowResponse {
-    repeated DNSEntry entries = 2;
+    DNSEntry entry = 1;
 }
 
 message ClearRequest {}
-message ReloadRequest {
-    repeated EntryRequest entries = 1;
-}
-message ReloadResponse {
-    repeated EntryResponse responses = 1;
-}

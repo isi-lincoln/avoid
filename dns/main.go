@@ -1,8 +1,7 @@
-package dns
+package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"net"
@@ -21,75 +20,6 @@ import (
 	"gitlab.com/mergetb/tech/stor"
 )
 
-func checkRecord(record *avoid.DNSEntry) error {
-	// TODO: other methods of identification
-	switch record.Recordtype {
-	case "A":
-		for _, ip := range record.Records {
-			addr, err := netip.ParseAddr(ip)
-			if err != nil {
-				return fmt.Errorf("Bad address provided %s: %v", ip, err)
-			}
-			if !addr.Is4() {
-				return fmt.Errorf("Address is not ipv4 but record type is %s: %s", ip, record.Recordtype)
-			}
-		}
-		break
-	case "AAAA":
-		for _, ip := range record.Records {
-			addr, err := netip.ParseAddr(ip)
-			if err != nil {
-				return fmt.Errorf("Bad address provided %s: %v", ip, err)
-			}
-			if !addr.Is6() {
-				return fmt.Errorf("Address is not ipv6 but record type is %s: %v", ip, record.Recordtype)
-			}
-		}
-		break
-	default:
-		errMsg := fmt.Errorf("Unknown record type: %s", record.Recordtype)
-		log.Errorf("%v", errMsg)
-		return errMsg
-	}
-
-	if len(record.Records) <= 0 {
-		return fmt.Errorf("DNS Entry does not have a value- delete instead")
-	}
-
-	// RFC 2181
-	if record.Ttl < 0 || record.Ttl >= (2<<31)-1 {
-		return fmt.Errorf("DNS Entry TTL must be between 0 and 2^31-1")
-	}
-
-	// RFC 6763
-	if len(record.Txt) == 0 || len(record.Txt) >= 65535 {
-		return fmt.Errorf("DNS TXT field must be between 1 and 65535")
-	}
-
-	if len(record.Txt) > 200 {
-		log.Warnf("%s: should use a TXT field less than 200 bytes: %s", record.Id, record.Txt)
-	}
-
-	return nil
-}
-
-func update(entry *avoid.DNSEntry) error {
-	err := checkRecord(entry)
-	if err != nil {
-		log.Errorf("%s", err)
-		return fmt.Errorf("%s", err)
-	}
-
-	objs := stor.Object(entry)
-
-	err = stor.Write(objs, false)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 type DNSServer struct {
 	avoid.UnimplementedDNSServer
 }
@@ -102,24 +32,43 @@ func (s *DNSServer) Update(ctx context.Context, req *avoid.EntryRequest) (*avoid
 		return nil, fmt.Errorf("%s", errMsg)
 	}
 
-	if req.Entry == nil {
+	if req.Entries == nil {
 		errMsg := fmt.Sprintf("Update: Missing DNS Entry")
 		log.Errorf("%s", errMsg)
 		return nil, fmt.Errorf("%s", errMsg)
 	}
 
-	log.WithFields(log.Fields{
-		"Identity": req.Entry.Id,
-		"Type":     req.Entry.Recordtype,
-		"Records":  req.Entry.Records,
-	}).Info("Update")
+	if len(req.Entries) < 1 {
+		errMsg := fmt.Sprintf("Update called with no values")
+		log.Errorf("%s", errMsg)
+		return nil, fmt.Errorf("%s", errMsg)
+	}
 
-	err := update(req.Entry)
+	objs := make([]stor.Object, 0)
+	for item, entry := range req.Entries {
+		log.WithFields(log.Fields{
+			"Index":    item,
+			"Identity": entry.Ue,
+			"Name":     entry.Name,
+			"A":        entry.Arecords,
+			"AAAA":     entry.Aaaarecords,
+		}).Info("Update")
+
+		err := pkg.CheckDNSRecord(entry)
+		if err != nil {
+			log.Errorf("%s", err)
+			return nil, fmt.Errorf("%s", err)
+		}
+
+		objs = append(objs, entry)
+	}
+
+	err := stor.WriteObjects(objs, false)
 	if err != nil {
 		return nil, err
 	}
 
-	return &avoid.EntryResponse{Response: "", Code: 0}, nil
+	return &avoid.EntryResponse{Response: "", Code: int64(len(req.Entries))}, nil
 }
 
 func (s *DNSServer) Delete(ctx context.Context, req *avoid.EntryRequest) (*avoid.EntryResponse, error) {
@@ -129,24 +78,33 @@ func (s *DNSServer) Delete(ctx context.Context, req *avoid.EntryRequest) (*avoid
 		return nil, fmt.Errorf("%s", errMsg)
 	}
 
-	if req.Entry == nil {
+	if req.Entries == nil {
 		errMsg := fmt.Sprintf("Delete: Missing DNS Entry")
 		log.Errorf("%s", errMsg)
 		return nil, fmt.Errorf("%s", errMsg)
 	}
 
-	log.WithFields(log.Fields{
-		"Key": req.Entry.Key,
-	}).Info("Delete")
+	if len(req.Entries) < 1 {
+		errMsg := fmt.Sprintf("Delete called with no values")
+		log.Errorf("%s", errMsg)
+		return nil, fmt.Errorf("%s", errMsg)
+	}
 
-	objs := stor.Object(req.Entry)
+	objs := make([]stor.Object, 0)
+	for item, entry := range req.Entries {
+		log.WithFields(log.Fields{
+			"Index": item,
+			"Key":   entry.Key,
+		}).Info("Delete")
+		objs = append(objs, entry)
+	}
 
-	err := stor.Delete(objs)
+	err := stor.DeleteObjects(objs)
 	if err != nil {
 		return nil, err
 	}
 
-	return &avoid.EntryResponse{Response: "", Code: 0}, nil
+	return &avoid.EntryResponse{Response: "", Code: int64(len(req.Entries))}, nil
 }
 
 func (s *DNSServer) List(ctx context.Context, req *avoid.ListRequest) (*avoid.ListResponse, error) {
@@ -165,15 +123,16 @@ func (s *DNSServer) List(ctx context.Context, req *avoid.ListRequest) (*avoid.Li
 			return err
 		}
 
-		// keys are in the form: "/prefix/key/record
+		// keys are in the form: "/prefix/ue/dnsName
 		// so we only want the keys portion
 		for _, kv := range resp.Kvs {
 			keyStr := strings.Split(string(kv.Key), "/")
 			if len(keyStr) != 4 {
-				log.Warnf("dns key issue: %s\n", keyStr)
+				log.Warnf("dns key issue: %s\n", kv.Key)
 				continue
 			}
-			key := keyStr[2]
+			// returns ue/dnsName
+			key := strings.Join(keyStr[2:], "/")
 			keys[key] = ""
 		}
 
@@ -201,48 +160,31 @@ func (s *DNSServer) Show(ctx context.Context, req *avoid.ShowRequest) (*avoid.Sh
 		return nil, fmt.Errorf("%s", errMsg)
 	}
 
-	if req.Key == "" {
-		errMsg := fmt.Sprintf("Show: Empty Key")
+	if req.Ue == "" || req.Name == "" {
+		errMsg := fmt.Sprintf("Show: Invalid request: {Ue: %s, Name: %s}", req.Ue, req.Name)
 		log.Errorf("%s", errMsg)
 		return nil, fmt.Errorf("%s", errMsg)
 	}
 
 	log.WithFields(log.Fields{
-		"Key": req.Key,
+		"Ue":   req.Ue,
+		"Name": req.Name,
 	}).Info("Show DNS Item")
 
-	records := make([]*avoid.DNSEntry, 0)
-	err := stor.WithEtcd(func(c *clientv3.Client) error {
-		//TODO:  arbitrary 1 second delay, should use config value
-		ctx, cancel := context.WithTimeout(context.TODO(), 1*time.Second)
-		resp, err := c.Get(ctx, fmt.Sprintf("%s/%s", avoid.DNSEntryPrefix, req.Key), clientv3.WithPrefix())
-		cancel()
-		if err != nil {
-			return err
-		}
+	entry := &avoid.DNSEntry{
+		Name: req.Name,
+		Ue:   req.Ue,
+	}
 
-		// keys are in the form: "/prefix/key/record
-		// so we only want the keys portion
-		for _, kv := range resp.Kvs {
-			tmp := &avoid.DNSEntry{}
-			err = json.Unmarshal(kv.Value, &tmp)
-			if err != nil {
-				return err
-			}
-
-			records = append(records, tmp)
-		}
-
-		return nil
-	})
-
+	err := stor.Read(entry)
 	if err != nil {
 		return nil, err
 	}
 
 	return &avoid.ShowResponse{
-		Entries: records,
+		Entry: entry,
 	}, nil
+
 }
 
 func (s *DNSServer) Clear(ctx context.Context, req *avoid.ClearRequest) (*avoid.EntryResponse, error) {
@@ -276,49 +218,26 @@ func (s *DNSServer) Clear(ctx context.Context, req *avoid.ClearRequest) (*avoid.
 	}, nil
 }
 
-func (s *DNSServer) Reload(ctx context.Context, req *avoid.ReloadRequest) (*avoid.ReloadResponse, error) {
-
-	if req == nil {
-		errMsg := fmt.Sprintf("Reload: Malformed Request")
-		log.Errorf("%s", errMsg)
-		return nil, fmt.Errorf("%s", errMsg)
-	}
-
-	if req.Entries == nil {
-		errMsg := fmt.Sprintf("Reload: Missing DNS Entry")
-		log.Errorf("%s", errMsg)
-		return nil, fmt.Errorf("%s", errMsg)
-	}
-
-	log.Info("Updating with %d entries", len(req.Entries))
-
-	resp := make([]*avoid.EntryResponse, 0)
-	for _, entry := range req.Entries {
-		var err error = update(entry.Entry)
-		var msg string = ""
-		var code int64 = 0
-		if err != nil {
-			msg = fmt.Sprintf("%v", err)
-			code = 1
-		}
-		resp = append(resp, &avoid.EntryResponse{Response: msg, Code: code})
-	}
-
-	return &avoid.ReloadResponse{Responses: resp}, nil
-}
-
 func main() {
 
 	var debug bool
 	var port int
 	var addr string
+	var etcdHost string
+	var etcdPort int
 
 	flag.IntVar(&port, "port", pkg.DefaultAvoidDNSPort, "set the Avoid DNS Control Port")
 	flag.StringVar(&addr, "addr", "0.0.0.0", "set the Avoid DNS Control Address")
 	flag.BoolVar(&debug, "debug", false, "enable extra debug logging")
 
+	// these values will only work/matter if no tls has been enabled
+	flag.IntVar(&etcdPort, "etcdport", pkg.DefaultEtcdPort, "set the etcd backend port")
+	flag.StringVar(&etcdHost, "etcdhost", pkg.DefaultEtcdHost, "set the etcd backend host")
+
 	defaultPortEnv := pkg.DefaultAvoidDNSPortENV
 	defaultAddrEnv := pkg.DefaultAvoidDNSAddrENV
+
+	// Presendence: ENV > flags > defaults
 
 	// If we have environment variables, load them in
 	portStr := os.Getenv(defaultPortEnv)
@@ -358,6 +277,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
+	log.Debugf("etcd values: %s:%d", etcdHost, etcdPort)
 
 	// configure the backend database settings
 	etcdCfg, err := pkg.SetEtcdSettings(cfg)
@@ -373,7 +293,7 @@ func main() {
 		return
 	}
 
-	if !netAddr.Is4() || !netAddr.Is6() {
+	if !netAddr.Is4() && !netAddr.Is6() {
 		log.Errorf("Address is not ipv4 or ipv6: %s", addr)
 		return
 	}
