@@ -1,0 +1,21 @@
+# /etc/coredns/Corefile
+
+example.com:53 {
+    file /etc/coredns/avoid.zone
+    reload 2s
+
+    log
+    errors
+    health
+    ready
+}
+
+
+.:53 {
+    log
+    errors
+    health
+    ready
+
+    forward . /etc/resolv.conf
+}

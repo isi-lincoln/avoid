@@ -150,7 +150,7 @@ func updateCliFunc(entry *avoid.DNSEntry) {
 	fmt.Printf("test cli\n")
 
 	addr := fmt.Sprintf("%s:%d", dnsServer, dnsPort)
-	pkg.WithAvoidDNS(addr, func(c avoid.DNSClient) error {
+	pkg.WithAvoidDNS(addr, func(c avoid.AVOIDDNSClient) error {
 		req := &avoid.EntryRequest{
 			Entries: []*avoid.DNSEntry{entry},
 		}
@@ -177,7 +177,7 @@ func updateFileFunc(fi string) {
 	}
 
 	addr := fmt.Sprintf("%s:%d", dnsServer, dnsPort)
-	pkg.WithAvoidDNS(addr, func(c avoid.DNSClient) error {
+	pkg.WithAvoidDNS(addr, func(c avoid.AVOIDDNSClient) error {
 		req := &avoid.EntryRequest{
 			Entries: eps,
 		}
@@ -207,7 +207,7 @@ func delEntryFunc(ue, name string) {
 		Name: name,
 	}
 
-	pkg.WithAvoidDNS(addr, func(c avoid.DNSClient) error {
+	pkg.WithAvoidDNS(addr, func(c avoid.AVOIDDNSClient) error {
 		req := &avoid.EntryRequest{
 			Entries: []*avoid.DNSEntry{entry},
 		}
@@ -227,7 +227,7 @@ func delEntryFunc(ue, name string) {
 func showConfigFunc(ue, name string) {
 
 	addr := fmt.Sprintf("%s:%d", dnsServer, dnsPort)
-	pkg.WithAvoidDNS(addr, func(c avoid.DNSClient) error {
+	pkg.WithAvoidDNS(addr, func(c avoid.AVOIDDNSClient) error {
 
 		resp, err := c.Show(context.TODO(), &avoid.ShowRequest{
 			Ue:   ue,
@@ -250,7 +250,7 @@ func listAvoidFunc() {
 
 	var keys []string
 	addr := fmt.Sprintf("%s:%d", dnsServer, dnsPort)
-	pkg.WithAvoidDNS(addr, func(c avoid.DNSClient) error {
+	pkg.WithAvoidDNS(addr, func(c avoid.AVOIDDNSClient) error {
 
 		resp, err := c.List(context.TODO(), &avoid.ListRequest{})
 

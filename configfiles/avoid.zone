@@ -1,0 +1,8 @@
+$TTL    10
+$ORIGIN example.com.
+@         IN  SOA   ns.example.com. contact.example.com. (2019121301 7200 3600 1209600 3600)
+    
+ns        IN  NS  ns.example.com.
+gw0       IN  A   10.1.0.100
+gw1       IN  A   10.2.0.100
+gw2       IN  A   10.3.0.100

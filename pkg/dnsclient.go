@@ -13,12 +13,12 @@ func ToEndpointAddr(server string, port int) string {
 	return fmt.Sprintf("%s:%d", server, port)
 }
 
-func WithAvoidDNS(endpoint string, f func(avoid.DNSClient) error) error {
+func WithAvoidDNS(endpoint string, f func(avoid.AVOIDDNSClient) error) error {
 	conn, err := grpc.Dial(endpoint, grpc.WithInsecure())
 	if err != nil {
 		return fmt.Errorf("failed to connect to moa service: %v", err)
 	}
-	client := avoid.NewDNSClient(conn)
+	client := avoid.NewAVOIDDNSClient(conn)
 	defer conn.Close()
 
 	return f(client)

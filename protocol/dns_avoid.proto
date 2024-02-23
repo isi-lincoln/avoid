@@ -8,7 +8,7 @@ package protocol;
  * The DNS service is responsible for managing the CoreDNS's
  * internal dns responses to clients.
 */
-service DNS {
+service AVOIDDNS {
   // Update: Create or Modify DNS entry
   rpc Update (EntryRequest) returns (EntryResponse) {}
 

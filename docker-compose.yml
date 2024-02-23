@@ -9,3 +9,9 @@ services:
     image: docker.io/isilincoln/avoid-dns-service
     volumes:
       - ./configfiles/etcd.yml:/etc/avoid/config.yml
+  coredns:
+    image: docker.io/isilincoln/avoid-coredns
+    volumes:
+      - ./configfiles/Corefile:/etc/coredns/Corefile
+      - ./configfiles/avoid.zone:/etc/coredns/avoid.zone
+    command: /coredns/coredns --cfg /etc/coredns/Corefile

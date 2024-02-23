@@ -20,11 +20,11 @@ import (
 	"gitlab.com/mergetb/tech/stor"
 )
 
-type DNSServer struct {
-	avoid.UnimplementedDNSServer
+type AVOIDDNSServer struct {
+	avoid.UnimplementedAVOIDDNSServer
 }
 
-func (s *DNSServer) Update(ctx context.Context, req *avoid.EntryRequest) (*avoid.EntryResponse, error) {
+func (s *AVOIDDNSServer) Update(ctx context.Context, req *avoid.EntryRequest) (*avoid.EntryResponse, error) {
 
 	if req == nil {
 		errMsg := fmt.Sprintf("Update: Malformed Request")
@@ -71,7 +71,7 @@ func (s *DNSServer) Update(ctx context.Context, req *avoid.EntryRequest) (*avoid
 	return &avoid.EntryResponse{Response: "", Code: int64(len(req.Entries))}, nil
 }
 
-func (s *DNSServer) Delete(ctx context.Context, req *avoid.EntryRequest) (*avoid.EntryResponse, error) {
+func (s *AVOIDDNSServer) Delete(ctx context.Context, req *avoid.EntryRequest) (*avoid.EntryResponse, error) {
 	if req == nil {
 		errMsg := fmt.Sprintf("Delete: Malformed Request")
 		log.Errorf("%s", errMsg)
@@ -107,7 +107,7 @@ func (s *DNSServer) Delete(ctx context.Context, req *avoid.EntryRequest) (*avoid
 	return &avoid.EntryResponse{Response: "", Code: int64(len(req.Entries))}, nil
 }
 
-func (s *DNSServer) List(ctx context.Context, req *avoid.ListRequest) (*avoid.ListResponse, error) {
+func (s *AVOIDDNSServer) List(ctx context.Context, req *avoid.ListRequest) (*avoid.ListResponse, error) {
 
 	log.Info("List DNS Entry Keys")
 
@@ -153,7 +153,7 @@ func (s *DNSServer) List(ctx context.Context, req *avoid.ListRequest) (*avoid.Li
 	}, nil
 }
 
-func (s *DNSServer) Show(ctx context.Context, req *avoid.ShowRequest) (*avoid.ShowResponse, error) {
+func (s *AVOIDDNSServer) Show(ctx context.Context, req *avoid.ShowRequest) (*avoid.ShowResponse, error) {
 	if req == nil {
 		errMsg := fmt.Sprintf("Show: Malformed Request")
 		log.Errorf("%s", errMsg)
@@ -187,7 +187,7 @@ func (s *DNSServer) Show(ctx context.Context, req *avoid.ShowRequest) (*avoid.Sh
 
 }
 
-func (s *DNSServer) Clear(ctx context.Context, req *avoid.ClearRequest) (*avoid.EntryResponse, error) {
+func (s *AVOIDDNSServer) Clear(ctx context.Context, req *avoid.ClearRequest) (*avoid.EntryResponse, error) {
 	if req == nil {
 		errMsg := fmt.Sprintf("Show: Malformed Request")
 		log.Errorf("%s", errMsg)
@@ -307,6 +307,6 @@ func main() {
 	}
 
 	grpcServer := grpc.NewServer()
-	avoid.RegisterDNSServer(grpcServer, &DNSServer{})
+	avoid.RegisterAVOIDDNSServer(grpcServer, &AVOIDDNSServer{})
 	grpcServer.Serve(lis)
 }
