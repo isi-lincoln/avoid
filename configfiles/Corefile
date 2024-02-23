@@ -3,7 +3,7 @@
 # The domain we care about managing
 example.com:53 {
     # the plugin we wrote
-    avoid avoid 9000
+    avoid dns-service
 
     # log queries
     log

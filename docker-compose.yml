@@ -9,6 +9,8 @@ services:
     image: docker.io/isilincoln/avoid-dns-service
     volumes:
       - ./configfiles/etcd.yml:/etc/avoid/config.yml
+    environment:
+      - DEBUG=yes
     ports:
       - "9000:9000"
     links:

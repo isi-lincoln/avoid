@@ -169,7 +169,7 @@ func (s *AVOIDDNSServer) Show(ctx context.Context, req *avoid.ShowRequest) (*avo
 	log.WithFields(log.Fields{
 		"Ue":   req.Ue,
 		"Name": req.Name,
-	}).Info("Show DNS Item")
+	}).Debug("Lookup DNS Item")
 
 	entry := &avoid.DNSEntry{
 		Name: req.Name,
@@ -178,8 +178,12 @@ func (s *AVOIDDNSServer) Show(ctx context.Context, req *avoid.ShowRequest) (*avo
 
 	err := stor.Read(entry)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%s/%s: Show(): %v", entry.Ue, entry.Name, err)
 	}
+
+	log.WithFields(log.Fields{
+		"Entry": entry,
+	}).Debug("Show Found")
 
 	return &avoid.ShowResponse{
 		Entry: entry,
