@@ -1,13 +1,29 @@
 # /etc/coredns/Corefile
 
+# The domain we care about managing
 example.com:53 {
-    file /etc/coredns/avoid.zone
-    reload 2s
+    # the plugin we wrote
+    avoid avoid 9000
 
+    # log queries
     log
+    # show errors
     errors
+    # enable metrics
+    prometheus
+    # enable livelyness
     health
+    # enable readyness
     ready
+
+    # randomize order of A, AAAA, MX records
+    #loadbalance
+
+    # provides a pprof endpoint for perf profiling
+    #pprof
+
+    # automatic reload when corefile changed
+    reload
 }
 
 
