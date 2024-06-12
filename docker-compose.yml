@@ -2,12 +2,16 @@ version: '3'
 services:
   etcd:
     image: bitnami/etcd:3.5.12
+    hostname: etcd
     ports:
       - "2379:2379"
     environment:
       - ALLOW_NONE_AUTHENTICATION=yes
+    networks:
+      - backend
   dns-service:
     image: docker.io/isilincoln/avoid-dns-service
+    hostname: dns-service
     build:
       context: .
       dockerfile: Dockerfile
@@ -19,11 +23,53 @@ services:
       - "9000:9000"
     links:
       - "etcd:db"
+    networks:
+      - backend
   coredns:
     image: docker.io/isilincoln/avoid-coredns
+    hostname: codedns
     volumes:
       - ./configfiles/Corefile:/etc/coredns/Corefile
       - ./configfiles/avoid.zone:/etc/coredns/avoid.zone
     command: /coredns/coredns -conf /etc/coredns/Corefile
     links:
       - "dns-service:avoid"
+    networks:
+      - backend
+      - overlay
+  gw0:
+    image: ubuntu:jammy
+    hostname: gw0
+    command: /opt/prep.sh
+    volumes:
+      - ./configfiles/prep.sh:/opt/prep.sh
+    links:
+      - "coredns:dns"
+    networks:
+      - overlay
+  gw1:
+    image: ubuntu:jammy
+    hostname: gw1
+    command: /opt/prep.sh
+    volumes:
+      - ./configfiles/prep.sh:/opt/prep.sh
+    links:
+      - "coredns:dns"
+    networks:
+      - overlay
+  ue:
+    image: ubuntu:jammy
+    hostname: ue
+    command: /opt/prep.sh
+    volumes:
+      - ./configfiles/prep.sh:/opt/prep.sh
+    links:
+      - "coredns:dns"
+    networks:
+      - overlay
+
+networks:
+  backend: 
+    driver: bridge
+  overlay:
+    driver: bridge
