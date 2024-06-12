@@ -227,16 +227,20 @@ func main() {
 	var debug bool
 	var port int
 	var addr string
+	var config string
 	var etcdHost string
 	var etcdPort int
 
 	flag.IntVar(&port, "port", pkg.DefaultAvoidDNSPort, "set the Avoid DNS Control Port")
 	flag.StringVar(&addr, "addr", "0.0.0.0", "set the Avoid DNS Control Address")
+	flag.StringVar(&config, "config", pkg.DefaultConfigPath, "configuration file path")
 	flag.BoolVar(&debug, "debug", false, "enable extra debug logging")
 
 	// these values will only work/matter if no tls has been enabled
 	flag.IntVar(&etcdPort, "etcdport", pkg.DefaultEtcdPort, "set the etcd backend port")
 	flag.StringVar(&etcdHost, "etcdhost", pkg.DefaultEtcdHost, "set the etcd backend host")
+
+	flag.Parse()
 
 	defaultPortEnv := pkg.DefaultAvoidDNSPortENV
 	defaultAddrEnv := pkg.DefaultAvoidDNSAddrENV
@@ -271,7 +275,7 @@ func main() {
 	}
 
 	// if we have a configuration file load it
-	cfg, err := pkg.LoadConfig(pkg.DefaultConfigPath)
+	cfg, err := pkg.LoadConfig(config)
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
@@ -281,7 +285,51 @@ func main() {
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
-	log.Debugf("etcd values: %s:%d", etcdHost, etcdPort)
+	//log.Debugf("etcd environment values: %s:%d", etcdHost, etcdPort)
+
+	resolver := ""
+	if cfg.Avoid != nil {
+		av := cfg.Avoid
+		if av.Address != "" {
+			addr = av.Address
+		}
+		if av.Port != 0 {
+			port = av.Port
+		}
+		if av.Resolver != "" {
+			resolver = av.Resolver
+		}
+		log.WithField("avoid", av).Debugf("Setting values")
+	}
+
+	if cfg.Etcd != nil {
+		et := cfg.Etcd
+		if et.Address != "" {
+			if resolver != "" {
+				r := &net.Resolver{
+					PreferGo: true,
+					Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+						d := net.Dialer{
+							Timeout: time.Duration(1000 * time.Millisecond),
+						}
+						return d.DialContext(ctx, network, fmt.Sprintf("%s:53", resolver))
+					},
+				}
+				ip, err := r.LookupHost(context.Background(), et.Address)
+				if err != nil {
+					log.WithField("resolver", resolver).Fatalf("Failed to do our lookup: %v\n", err)
+				}
+
+				if len(ip) == 0 {
+					log.WithField("resolver", resolver).Fatalf("Failed to find: %v\n", err)
+				}
+
+				cfg.Etcd.Address = ip[0]
+				log.WithField("resolved", ip).Infof("Resolved new address\n")
+			}
+
+		}
+	}
 
 	// configure the backend database settings
 	etcdCfg, err := pkg.SetEtcdSettings(cfg)

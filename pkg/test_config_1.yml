@@ -2,3 +2,8 @@ etcd:
   address: localhost
   port: 2379
   timeout: 3000
+
+avoid:
+  address: 192.168.0.10
+  port: 9000
+  resolver: 192.168.0.1

@@ -21,9 +21,16 @@ type ServiceConfig struct {
 	Timeout int             `yaml:timeout",omitempty"`
 }
 
+type AvoidServiceConfig struct {
+	Address  string `yaml:address",omitempty"`
+	Port     int    `yaml:port",omitempty"`
+	Resolver string `yaml:resolver",omitempty"`
+}
+
 // ServicesConfig encapsulates information for communicating with services.
 type ServicesConfig struct {
-	Etcd *ServiceConfig `yaml:",omitempty"`
+	Etcd  *ServiceConfig      `yaml:",omitempty"`
+	Avoid *AvoidServiceConfig `yaml:",omitempty"`
 }
 
 // Endpoint returns the endpoint string of a service config.
@@ -47,8 +54,6 @@ func LoadConfig(configPath string) (*ServicesConfig, error) {
 		log.Errorf("could not parse configuration file")
 		return nil, err
 	}
-
-	log.Infof("%v", cfg.Etcd)
 
 	log.WithFields(log.Fields{
 		"config": fmt.Sprintf("%+v", *cfg),

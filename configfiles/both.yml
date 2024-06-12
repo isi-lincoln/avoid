@@ -1,0 +1,8 @@
+etcd:
+  address: "etcd"
+  port: 2379
+  timeout: 3000
+
+avoid:
+  address: "localhost"
+  port: 9000
