@@ -4,5 +4,6 @@ etcd:
   timeout: 3000
 
 avoid:
-  address: "localhost"
+  address: 0.0.0.0
   port: 9000
+  resolver: 127.0.0.11
